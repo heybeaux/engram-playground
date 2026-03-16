@@ -20,22 +20,46 @@ function generateAgentResponse(
   userMessage: string,
   memories: Memory[]
 ): string {
-  if (memories.length === 0) {
-    return "Hi! I'm a demo agent powered by Engram. Tell me about yourself — I'll remember everything. When you're ready, hit the Dream button and watch what happens.";
+  const count = memories.length;
+  const msg = userMessage.toLowerCase();
+
+  // First message ever
+  if (count === 0) {
+    return "Hey! I'm a demo agent with Engram memory. Tell me things about yourself and watch the Memory Stream light up in real-time. Once you've shared a few things, you can trigger a Dream Cycle and watch me consolidate everything.";
   }
 
-  if (memories.length < 3) {
-    return "Got it — I'm building up memories about you. Keep chatting and watch the memory stream on the right. Once we have a few, you can trigger a Dream Cycle to see consolidation in action.";
+  // Early messages — varied responses
+  if (count === 1) {
+    return `Stored! You can see that memory appearing in the stream. Keep going — tell me more about yourself. I need at least 3 memories before we can dream.`;
   }
 
-  if (userMessage.toLowerCase().includes("remember")) {
-    return `Let me check... I remember: ${memories
+  if (count === 2) {
+    return `Two memories and counting. One more and you'll unlock the Dream Cycle button — that's where the magic happens. What else should I know about you?`;
+  }
+
+  if (count === 3) {
+    return `Three memories stored! The Dream button is now active. Hit it whenever you're ready — you'll watch me consolidate, deduplicate, cluster, and extract patterns from everything you've told me. Or keep chatting to build a richer memory graph first.`;
+  }
+
+  // Handle "remember" queries
+  if (msg.includes("remember") || msg.includes("what do you know")) {
+    const recalled = memories
       .slice(0, 3)
-      .map((m) => m.raw)
-      .join(" Also, ")}. Try triggering a Dream Cycle to see deeper pattern recognition.`;
+      .map((m) => m.raw.replace("User said: ", ""))
+      .join(". ");
+    return `From my memory: ${recalled}. That's semantic recall — I found the most relevant memories, not just the most recent. Try the Dream Cycle to see deeper consolidation.`;
   }
 
-  return `That connects to what I already know about you. I've stored ${memories.length} memories so far. Hit Dream to watch me consolidate everything into deeper understanding.`;
+  // Later messages — contextual variety
+  const responses = [
+    `Got it — memory #${count} stored. The more you share, the more interesting the Dream Cycle patterns become.`,
+    `Interesting. I'm building a richer picture of you with every message. ${count} memories so far — try hitting Dream to see what patterns emerge.`,
+    `Noted. Each message gets embedded, scored for importance, and linked to what I already know. Watch the importance scores in the memory stream — some memories matter more than others.`,
+    `Stored. Fun fact: when you trigger the Dream Cycle, I'll look for duplicates to merge, clusters to form, and entities to extract across all ${count} of your memories.`,
+    `Another memory captured. The real power shows when you Dream — I consolidate everything, find patterns you didn't explicitly state, and build a knowledge graph of entities.`,
+  ];
+
+  return responses[count % responses.length];
 }
 
 export default function Playground() {
@@ -70,6 +94,8 @@ export default function Playground() {
       };
       setMessages((prev) => [...prev, userMsg]);
 
+      // Store memory and wait for result before generating response
+      let newMemory: Memory | null = null;
       try {
         const res = await fetch("/api/memories", {
           method: "POST",
@@ -83,14 +109,16 @@ export default function Playground() {
         });
         const memory = await res.json();
         if (memory && !memory.error) {
+          newMemory = memory;
           setMemories((prev) => [memory, ...prev]);
         }
       } catch (err) {
         console.error("Memory store failed:", err);
       }
 
-      setTimeout(() => {
-        const response = generateAgentResponse(content, memories);
+      // Use functional state to get current memories count (avoids stale closure)
+      setMemories((currentMemories) => {
+        const response = generateAgentResponse(content, currentMemories);
         const assistantMsg: ChatMessage = {
           id: `msg-${Date.now()}-a`,
           role: "assistant",
@@ -98,9 +126,10 @@ export default function Playground() {
           timestamp: Date.now(),
         };
         setMessages((prev) => [...prev, assistantMsg]);
-      }, 600);
+        return currentMemories; // don't modify, just read
+      });
     },
-    [session, memories]
+    [session]
   );
 
   const handleDream = useCallback(async () => {
