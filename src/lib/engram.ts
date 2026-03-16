@@ -31,11 +31,13 @@ async function engramFetch(path: string, opts: EngramRequestOptions) {
   return res.json();
 }
 
-// Store a memory
+// Valid layers: IDENTITY, PROJECT, SESSION, TASK, INSIGHT
+// Valid sources: DREAM_CYCLE, EXPLICIT_STATEMENT, AGENT_OBSERVATION, AGENT_REFLECTION, CORRECTION, PATTERN_DETECTED, SYSTEM, GIT_HISTORY
 export async function storeMemory(
   userId: string,
   content: string,
-  layer: string = "EPISODIC"
+  layer: string = "IDENTITY",
+  source: string = "EXPLICIT_STATEMENT"
 ) {
   return engramFetch("/v1/memories", {
     method: "POST",
@@ -43,7 +45,7 @@ export async function storeMemory(
     body: {
       raw: content,
       layer,
-      source: "playground-demo",
+      source,
     },
   });
 }

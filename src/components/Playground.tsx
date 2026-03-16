@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import ChatPanel from "./ChatPanel";
 import MemoryFeed from "./MemoryFeed";
@@ -16,50 +16,52 @@ interface SessionState {
   isLive: boolean;
 }
 
-function generateAgentResponse(
-  userMessage: string,
-  memories: Memory[]
-): string {
-  const count = memories.length;
-  const msg = userMessage.toLowerCase();
+// Agent-driven conversation flow — the agent asks questions and extracts memories
+const CONVERSATION_FLOW = [
+  {
+    question: "Hey! I'm an agent with Engram memory. Let's try something — what's your name?",
+    memoryExtract: (answer: string) => ({
+      raw: `User's name is ${answer.replace(/^(i'm |my name is |it's |i am )/i, "").trim()}`,
+      layer: "IDENTITY",
+    }),
+  },
+  {
+    question: (name: string) =>
+      `Nice to meet you, ${name}! What do you do for work? Or what are you passionate about?`,
+    memoryExtract: (answer: string) => ({
+      raw: `User works in or is passionate about: ${answer}`,
+      layer: "IDENTITY",
+    }),
+  },
+  {
+    question: "Got it — that's stored. Now tell me something personal. What's a favourite hobby, food, or random fact about you?",
+    memoryExtract: (answer: string) => ({
+      raw: `Personal preference: ${answer}`,
+      layer: "INSIGHT",
+    }),
+  },
+  {
+    question: "Last one. What's something you're working on or thinking about lately?",
+    memoryExtract: (answer: string) => ({
+      raw: `Currently working on or thinking about: ${answer}`,
+      layer: "PROJECT",
+    }),
+  },
+];
 
-  // First message ever
-  if (count === 0) {
-    return "Hey! I'm a demo agent with Engram memory. Tell me things about yourself and watch the Memory Stream light up in real-time. Once you've shared a few things, you can trigger a Dream Cycle and watch me consolidate everything.";
-  }
+const POST_FLOW_RESPONSES = [
+  "All four memories stored! 🧠 Hit the **Dream** button below and watch what happens — I'll consolidate, find patterns, extract entities, and cluster everything you told me.",
+  "Keep chatting if you want — every message becomes a memory. Or hit Dream now to see consolidation in action.",
+  "The more you share, the richer the Dream Cycle results. But you've got enough to see something interesting already.",
+];
 
-  // Early messages — varied responses
-  if (count === 1) {
-    return `Stored! You can see that memory appearing in the stream. Keep going — tell me more about yourself. I need at least 3 memories before we can dream.`;
-  }
-
-  if (count === 2) {
-    return `Two memories and counting. One more and you'll unlock the Dream Cycle button — that's where the magic happens. What else should I know about you?`;
-  }
-
-  if (count === 3) {
-    return `Three memories stored! The Dream button is now active. Hit it whenever you're ready — you'll watch me consolidate, deduplicate, cluster, and extract patterns from everything you've told me. Or keep chatting to build a richer memory graph first.`;
-  }
-
-  // Handle "remember" queries
-  if (msg.includes("remember") || msg.includes("what do you know")) {
-    const recalled = memories
-      .slice(0, 3)
-      .map((m) => m.raw.replace("User said: ", ""))
-      .join(". ");
-    return `From my memory: ${recalled}. That's semantic recall — I found the most relevant memories, not just the most recent. Try the Dream Cycle to see deeper consolidation.`;
-  }
-
-  // Later messages — contextual variety
-  const responses = [
-    `Got it — memory #${count} stored. The more you share, the more interesting the Dream Cycle patterns become.`,
-    `Interesting. I'm building a richer picture of you with every message. ${count} memories so far — try hitting Dream to see what patterns emerge.`,
-    `Noted. Each message gets embedded, scored for importance, and linked to what I already know. Watch the importance scores in the memory stream — some memories matter more than others.`,
-    `Stored. Fun fact: when you trigger the Dream Cycle, I'll look for duplicates to merge, clusters to form, and entities to extract across all ${count} of your memories.`,
-    `Another memory captured. The real power shows when you Dream — I consolidate everything, find patterns you didn't explicitly state, and build a knowledge graph of entities.`,
-  ];
-
-  return responses[count % responses.length];
+function extractName(message: string): string {
+  const cleaned = message
+    .replace(/^(i'm |my name is |it's |i am |hey,? i'm |hi,? i'm )/i, "")
+    .replace(/[.!?,].*$/, "")
+    .trim();
+  // Capitalize first letter
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
 export default function Playground() {
@@ -68,6 +70,53 @@ export default function Playground() {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [isDreaming, setIsDreaming] = useState(false);
   const [dreamResult, setDreamResult] = useState<DreamResult | null>(null);
+  const [flowStep, setFlowStep] = useState(0);
+  const [userName, setUserName] = useState("");
+  const flowStepRef = useRef(0);
+  const userNameRef = useRef("");
+
+  // Keep refs in sync
+  useEffect(() => {
+    flowStepRef.current = flowStep;
+    userNameRef.current = userName;
+  }, [flowStep, userName]);
+
+  const addAgentMessage = useCallback((content: string) => {
+    const msg: ChatMessage = {
+      id: `msg-${Date.now()}-a`,
+      role: "assistant",
+      content,
+      timestamp: Date.now(),
+    };
+    setMessages((prev) => [...prev, msg]);
+  }, []);
+
+  const storeMemoryAndUpdate = useCallback(
+    async (content: string, layer: string) => {
+      if (!session) return;
+      try {
+        const res = await fetch("/api/memories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: session.userId,
+            content,
+            layer,
+            isLive: session.isLive,
+          }),
+        });
+        const memory = await res.json();
+        if (memory && !memory.error) {
+          setMemories((prev) => [memory, ...prev]);
+          return memory;
+        }
+      } catch (err) {
+        console.error("Memory store failed:", err);
+      }
+      return null;
+    },
+    [session]
+  );
 
   const initSession = useCallback(async () => {
     try {
@@ -77,6 +126,20 @@ export default function Playground() {
       setMessages([]);
       setMemories([]);
       setDreamResult(null);
+      setFlowStep(0);
+      setUserName("");
+
+      // Agent kicks off the conversation
+      setTimeout(() => {
+        const firstQ = CONVERSATION_FLOW[0].question;
+        const msg: ChatMessage = {
+          id: `msg-init`,
+          role: "assistant",
+          content: typeof firstQ === "string" ? firstQ : firstQ(""),
+          timestamp: Date.now(),
+        };
+        setMessages([msg]);
+      }, 500);
     } catch (err) {
       console.error("Failed to create session:", err);
     }
@@ -86,6 +149,7 @@ export default function Playground() {
     async (content: string) => {
       if (!session) return;
 
+      // Add user message
       const userMsg: ChatMessage = {
         id: `msg-${Date.now()}`,
         role: "user",
@@ -94,42 +158,59 @@ export default function Playground() {
       };
       setMessages((prev) => [...prev, userMsg]);
 
-      // Store memory and wait for result before generating response
-      let newMemory: Memory | null = null;
-      try {
-        const res = await fetch("/api/memories", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: session.userId,
-            content: `User said: ${content}`,
-            layer: "EPISODIC",
-            isLive: session.isLive,
-          }),
-        });
-        const memory = await res.json();
-        if (memory && !memory.error) {
-          newMemory = memory;
-          setMemories((prev) => [memory, ...prev]);
-        }
-      } catch (err) {
-        console.error("Memory store failed:", err);
-      }
+      const currentStep = flowStepRef.current;
 
-      // Use functional state to get current memories count (avoids stale closure)
-      setMemories((currentMemories) => {
-        const response = generateAgentResponse(content, currentMemories);
-        const assistantMsg: ChatMessage = {
-          id: `msg-${Date.now()}-a`,
-          role: "assistant",
-          content: response,
-          timestamp: Date.now(),
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-        return currentMemories; // don't modify, just read
-      });
+      if (currentStep < CONVERSATION_FLOW.length) {
+        // We're in the guided flow
+        const step = CONVERSATION_FLOW[currentStep];
+        const extracted = step.memoryExtract(content);
+
+        // Extract name from first answer
+        if (currentStep === 0) {
+          const name = extractName(content);
+          setUserName(name);
+          userNameRef.current = name;
+        }
+
+        // Store the memory
+        await storeMemoryAndUpdate(extracted.raw, extracted.layer);
+
+        const nextStep = currentStep + 1;
+        setFlowStep(nextStep);
+        flowStepRef.current = nextStep;
+
+        // Next question or completion
+        setTimeout(() => {
+          if (nextStep < CONVERSATION_FLOW.length) {
+            const nextQ = CONVERSATION_FLOW[nextStep].question;
+            const questionText =
+              typeof nextQ === "function"
+                ? nextQ(userNameRef.current)
+                : nextQ;
+            addAgentMessage(questionText);
+          } else {
+            addAgentMessage(POST_FLOW_RESPONSES[0]);
+          }
+        }, 800);
+      } else {
+        // Free chat after guided flow
+        await storeMemoryAndUpdate(
+          `${userNameRef.current} said: ${content}`,
+          "SESSION"
+        );
+
+        setTimeout(() => {
+          const idx =
+            (currentStep - CONVERSATION_FLOW.length) %
+            (POST_FLOW_RESPONSES.length - 1);
+          addAgentMessage(POST_FLOW_RESPONSES[idx + 1]);
+        }, 600);
+
+        setFlowStep(currentStep + 1);
+        flowStepRef.current = currentStep + 1;
+      }
     },
-    [session]
+    [session, storeMemoryAndUpdate, addAgentMessage]
   );
 
   const handleDream = useCallback(async () => {
@@ -137,6 +218,10 @@ export default function Playground() {
 
     setIsDreaming(true);
     setDreamResult(null);
+
+    addAgentMessage(
+      "Initiating Dream Cycle... watch the memory stream. 🌙"
+    );
 
     try {
       const res = await fetch("/api/dream", {
@@ -150,12 +235,17 @@ export default function Playground() {
       const result = await res.json();
       await new Promise((r) => setTimeout(r, 2500));
       setDreamResult(result);
+
+      addAgentMessage(
+        `Dream complete! I consolidated ${result.consolidated || 0} memories, found ${result.entitiesExtracted || 0} entities, and formed ${result.clustersFormed || 0} clusters. Scroll down to see the full breakdown.`
+      );
     } catch (err) {
       console.error("Dream cycle failed:", err);
+      addAgentMessage("Dream cycle hit an error — but the concept is real. Check the API docs to try it yourself.");
     } finally {
       setIsDreaming(false);
     }
-  }, [session, isDreaming]);
+  }, [session, isDreaming, addAgentMessage]);
 
   if (!session) {
     return (
@@ -172,7 +262,6 @@ export default function Playground() {
 
   return (
     <section id="playground" className="py-16 px-6 relative">
-      {/* Orb background during dream */}
       {isDreaming && (
         <div className="absolute inset-0 z-0 opacity-30 pointer-events-none">
           <MemoryOrb memoryCount={memories.length} isDreaming={true} />
@@ -188,38 +277,40 @@ export default function Playground() {
             {session.isLive ? (
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-emerald-400/80">Connected to live Engram API</span>
+                <span className="text-emerald-400/80">
+                  Connected to live Engram API
+                </span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                <span className="text-amber-400/80">Running simulated demo</span>
+                <span className="text-amber-400/80">
+                  Running simulated demo
+                </span>
               </span>
             )}
           </p>
         </div>
 
-        {/* Main playground — three columns on large screens */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px_1fr] gap-4 mb-8">
-          {/* Chat */}
           <div className="bg-white/[0.015] border border-white/[0.04] rounded-3xl h-[520px] overflow-hidden backdrop-blur-sm">
             <ChatPanel messages={messages} onSendMessage={handleSendMessage} />
           </div>
 
-          {/* Center orb */}
           <div className="hidden lg:flex items-center justify-center">
             <div className="w-[200px] h-[300px]">
-              <MemoryOrb memoryCount={memories.length} isDreaming={isDreaming} />
+              <MemoryOrb
+                memoryCount={memories.length}
+                isDreaming={isDreaming}
+              />
             </div>
           </div>
 
-          {/* Memory feed */}
           <div className="bg-white/[0.015] border border-white/[0.04] rounded-3xl h-[520px] overflow-hidden backdrop-blur-sm">
             <MemoryFeed memories={memories} isDreaming={isDreaming} />
           </div>
         </div>
 
-        {/* Dream button */}
         <div className="max-w-sm mx-auto mb-8">
           <DreamButton
             onClick={handleDream}
@@ -228,7 +319,6 @@ export default function Playground() {
           />
         </div>
 
-        {/* Dream results */}
         <DreamResults result={dreamResult} isVisible={!!dreamResult} />
       </div>
     </section>

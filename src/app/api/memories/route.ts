@@ -2,35 +2,36 @@ import { NextRequest, NextResponse } from "next/server";
 import { storeMemory, queryMemories, listMemories } from "@/lib/engram";
 import { SIMULATED_MEMORIES } from "@/lib/demo-session";
 
-// Store a memory
+// Valid layers: IDENTITY, PROJECT, SESSION, TASK, INSIGHT
+const VALID_LAYERS = ["IDENTITY", "PROJECT", "SESSION", "TASK", "INSIGHT"];
+
 export async function POST(req: NextRequest) {
   try {
     const { userId, content, layer, isLive } = await req.json();
+    const safeLayer = VALID_LAYERS.includes(layer) ? layer : "IDENTITY";
 
     if (!isLive) {
-      // Simulated: return a fake memory
       const simMemory = {
         id: `sim-${Date.now()}`,
         raw: content,
-        layer: layer || "EPISODIC",
+        layer: safeLayer,
         importanceScore: Math.random() * 0.5 + 0.4,
         createdAt: new Date().toISOString(),
       };
       return NextResponse.json(simMemory);
     }
 
-    const result = await storeMemory(userId, content, layer);
+    const result = await storeMemory(userId, content, safeLayer);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Memory store error:", error);
     return NextResponse.json(
-      { error: "Failed to store memory" },
+      { error: "Failed to store memory", detail: String(error) },
       { status: 500 }
     );
   }
 }
 
-// Query memories
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
