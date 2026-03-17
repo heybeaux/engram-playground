@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWM Bracket Intelligence — March Madness 2026</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #09090b; color: #fafafa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 32px; max-width: 1400px; margin: 0 auto; }
+  
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .subtitle { color: rgba(255,255,255,0.3); font-size: 12px; }
+  .powered { color: rgba(139,92,246,0.5); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 40px; }
+  
+  h2 { font-size: 16px; font-weight: 700; margin: 36px 0 14px; letter-spacing: -0.3px; }
+  
+  /* Champion banner */
+  .champion-banner {
+    background: linear-gradient(135deg, rgba(139,92,246,0.08), rgba(6,182,212,0.06), rgba(244,63,94,0.04));
+    border: 1px solid rgba(139,92,246,0.2);
+    border-radius: 20px;
+    padding: 32px;
+    text-align: center;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .champion-banner::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%; width: 200%; height: 200%;
+    background: radial-gradient(ellipse at center, rgba(139,92,246,0.04), transparent 60%);
+    animation: pulse 4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+  .champion-label { font-size: 9px; text-transform: uppercase; letter-spacing: 3px; color: rgba(255,255,255,0.3); position: relative; }
+  .champion-name { font-size: 40px; font-weight: 800; letter-spacing: -1.5px; background: linear-gradient(135deg, #a78bfa, #22d3ee); -webkit-background-clip: text; -webkit-text-fill-color: transparent; position: relative; }
+  .champion-detail { font-size: 12px; color: rgba(255,255,255,0.35); margin-top: 8px; position: relative; }
+  
+  /* Final Four */
+  .final-four {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 32px;
+  }
+  .ff-card {
+    border-radius: 14px;
+    padding: 18px;
+    text-align: center;
+    position: relative;
+  }
+  .ff-seed { font-size: 10px; font-weight: 600; opacity: 0.5; }
+  .ff-team { font-size: 18px; font-weight: 700; margin: 4px 0; }
+  .ff-kenpom { font-size: 10px; opacity: 0.4; }
+  .ff-path { font-size: 9px; opacity: 0.3; margin-top: 6px; line-height: 1.4; }
+  .ff-label { font-size: 8px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.3; margin-bottom: 6px; }
+  
+  .ff-east { background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.15); }
+  .ff-east .ff-team { color: #60a5fa; }
+  .ff-west { background: rgba(244,63,94,0.06); border: 1px solid rgba(244,63,94,0.15); }
+  .ff-west .ff-team { color: #fb7185; }
+  .ff-south { background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.15); }
+  .ff-south .ff-team { color: #fbbf24; }
+  .ff-midwest { background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.15); }
+  .ff-midwest .ff-team { color: #34d399; }
+  
+  /* Region */
+  .region {
+    background: rgba(255,255,255,0.01);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .region-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .region-name { font-size: 14px; font-weight: 700; }
+  .region-winner { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 8px; }
+  
+  .east-winner { background: rgba(59,130,246,0.1); color: #60a5fa; }
+  .west-winner { background: rgba(244,63,94,0.1); color: #fb7185; }
+  .south-winner { background: rgba(251,191,36,0.1); color: #fbbf24; }
+  .midwest-winner { background: rgba(16,185,129,0.1); color: #34d399; }
+  
+  /* Game rows */
+  .game {
+    display: grid;
+    grid-template-columns: 28px 1fr 60px 40px auto;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.02);
+  }
+  .game:last-child { border-bottom: none; }
+  .game-seeds { font-size: 10px; color: rgba(255,255,255,0.25); text-align: center; font-weight: 600; }
+  .game-matchup { font-size: 12px; }
+  .game-winner { font-weight: 700; }
+  .game-loser { color: rgba(255,255,255,0.25); }
+  .game-kenpom { font-size: 9px; color: rgba(255,255,255,0.2); text-align: right; }
+  .game-conf { font-size: 9px; color: rgba(255,255,255,0.15); text-align: center; }
+  
+  .tag { font-size: 8px; padding: 2px 7px; border-radius: 5px; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap; }
+  .tag-chalk { background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.2); }
+  .tag-upset { background: rgba(244,63,94,0.12); color: #fb7185; }
+  .tag-value { background: rgba(139,92,246,0.1); color: #a78bfa; }
+  .tag-danger { background: rgba(251,191,36,0.1); color: #fbbf24; }
+  .tag-lock { background: rgba(16,185,129,0.08); color: #34d399; }
+  .tag-flip { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.3); }
+  
+  /* Insights */
+  .insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin: 16px 0; }
+  .insight-card {
+    background: rgba(255,255,255,0.015);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 14px;
+    padding: 16px;
+  }
+  .insight-title { font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+  .insight-body { font-size: 10px; color: rgba(255,255,255,0.4); line-height: 1.6; }
+  .insight-source { font-size: 9px; color: rgba(139,92,246,0.4); margin-top: 8px; }
+  
+  /* Underseeded table */
+  .us-table { width: 100%; margin: 12px 0; }
+  .us-table th { text-align: left; font-size: 9px; color: rgba(255,255,255,0.25); text-transform: uppercase; letter-spacing: 1.5px; padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .us-table td { font-size: 11px; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.02); color: rgba(255,255,255,0.6); }
+  .us-gap { font-weight: 700; }
+  
+  /* Upset rates */
+  .upset-bar-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
+  .upset-label { font-size: 10px; color: rgba(255,255,255,0.4); min-width: 70px; }
+  .upset-bar { flex: 1; height: 5px; background: rgba(255,255,255,0.03); border-radius: 3px; overflow: hidden; max-width: 200px; }
+  .upset-fill { height: 100%; border-radius: 3px; }
+  .upset-pct { font-size: 10px; color: rgba(255,255,255,0.3); min-width: 45px; }
+  
+  hr { border: none; border-top: 1px solid rgba(255,255,255,0.03); margin: 36px 0; }
+  
+  /* Round labels */
+  .rounds { display: flex; gap: 6px; margin: 12px 0 4px; }
+  .round-pill { font-size: 8px; padding: 3px 10px; border-radius: 6px; background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.25); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+  .round-pill.active { background: rgba(139,92,246,0.08); color: #a78bfa; }
+  
+  .sweet16-line { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 11px; }
+  .s16-round { font-size: 9px; color: rgba(255,255,255,0.2); min-width: 80px; text-transform: uppercase; letter-spacing: 1px; }
+  .s16-pick { font-weight: 600; }
+  .s16-over { color: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏀 AWM Bracket Intelligence</h1>
+  <span class="subtitle">March Madness 2026 · Locks March 19</span>
+</div>
+<div class="powered">Powered by Engram Agent Working Memory · 41 memories · Semantic Recall Active</div>
+
+<!-- ============ CHAMPION ============ -->
+<div class="champion-banner">
+  <div class="champion-label">AWM Predicted Champion</div>
+  <div class="champion-name">Duke Blue Devils</div>
+  <div class="champion-detail">32-2 · KenPom #1 · AdjEM 32.5 · Best defense in America (89.6 AdjD) · over Houston in final</div>
+</div>
+
+<!-- ============ FINAL FOUR ============ -->
+<div style="margin-bottom: 6px;">
+  <span style="font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: rgba(255,255,255,0.2);">Final Four — Indianapolis · April 5-6</span>
+</div>
+<div class="final-four">
+  <div class="ff-card ff-east">
+    <div class="ff-label">East</div>
+    <div class="ff-seed">#1 Seed</div>
+    <div class="ff-team">Duke</div>
+    <div class="ff-kenpom">KenPom #1 · AdjEM 32.5</div>
+    <div class="ff-path">→ Siena → Ohio St → UConn → Kansas</div>
+  </div>
+  <div class="ff-card ff-west">
+    <div class="ff-label">West</div>
+    <div class="ff-seed">#2 Seed</div>
+    <div class="ff-team">Purdue</div>
+    <div class="ff-kenpom">KenPom #5 · AdjEM 29.4</div>
+    <div class="ff-path">→ Queens → Villanova → Gonzaga → Arizona</div>
+  </div>
+  <div class="ff-card ff-south">
+    <div class="ff-label">South</div>
+    <div class="ff-seed">#2 Seed</div>
+    <div class="ff-team">Houston</div>
+    <div class="ff-kenpom">KenPom #2 · AdjEM 31.2</div>
+    <div class="ff-path">→ R1 → St. Mary's → UNC → Florida</div>
+  </div>
+  <div class="ff-card ff-midwest">
+    <div class="ff-label">Midwest</div>
+    <div class="ff-seed">#6 Seed 🔥</div>
+    <div class="ff-team">Tennessee</div>
+    <div class="ff-kenpom">KenPom #6 · AdjEM 28.7</div>
+    <div class="ff-path">→ SMU → Alabama → Virginia → Iowa St</div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ KEY INSIGHTS ============ -->
+<h2>🧠 AWM Key Insights</h2>
+<div class="insight-grid">
+  <div class="insight-card">
+    <div class="insight-title" style="color: #fb7185;">🎯 Trust KenPom Over Seeds</div>
+    <div class="insight-body">Teams with AdjEM above 20 have a 75% historical win rate vs lower seeds. When KenPom ranking disagrees with seeding, the data says trust KenPom. This drives our Tennessee, Alabama, UNC, and Kentucky picks.</div>
+    <div class="insight-source">Source: AWM recall · Historical tournament analysis</div>
+  </div>
+  <div class="insight-card">
+    <div class="insight-title" style="color: #fbbf24;">⚠️ Florida Is Vulnerable</div>
+    <div class="insight-body">Florida is the weakest 1-seed at KenPom #22 (AdjEM 23.4). The South region is the most likely to produce a Cinderella. Houston (KenPom #2) as a 2-seed is the real favorite. We pick Houston to win the South.</div>
+    <div class="insight-source">Source: AWM recall · KenPom efficiency analysis</div>
+  </div>
+  <div class="insight-card">
+    <div class="insight-title" style="color: #34d399;">📊 The 12-5 Rule</div>
+    <div class="insight-body">12-seeds beat 5-seeds 35.6% of the time — over a third. Every serious bracket needs at least one 12-over-5 pick. We're taking McNeese over Vanderbilt in the South. Mid-major, plays fast, nothing to lose.</div>
+    <div class="insight-source">Source: AWM recall · 1985-2025 historical data (57/160 games)</div>
+  </div>
+  <div class="insight-card">
+    <div class="insight-title" style="color: #a78bfa;">🌑 Tennessee: The Dark Horse</div>
+    <div class="insight-body">KenPom #6 playing as a 6-seed. Elite defense (88.5 AdjD — 3rd best in the field). Most underseeded team in the tournament. Has the profile of a surprise Final Four run — deep roster, battle-tested in the SEC.</div>
+    <div class="insight-source">Source: AWM recall · Underseeded team analysis</div>
+  </div>
+</div>
+
+<!-- ============ UNDERSEEDED ============ -->
+<h2>📈 Most Underseeded Teams (Best Value Picks)</h2>
+<table class="us-table">
+  <thead>
+    <tr><th>Team</th><th>Seed</th><th>KenPom</th><th>Gap</th><th>AdjEM</th><th>Why It Matters</th></tr>
+  </thead>
+  <tbody>
+    <tr><td style="color:#34d399; font-weight:600;">Tennessee</td><td>6</td><td>#6</td><td class="us-gap" style="color:#34d399;">+0 (should be 1-2)</td><td>28.7</td><td>Elite defense, SEC tested, Final Four pick</td></tr>
+    <tr><td style="color:#fbbf24; font-weight:600;">Kansas</td><td>4</td><td>#8</td><td class="us-gap" style="color:#fbbf24;">+4 slots</td><td>27.9</td><td>Big 12 schedule inflated losses</td></tr>
+    <tr><td style="color:#fbbf24; font-weight:600;">Alabama</td><td>4</td><td>#9</td><td class="us-gap" style="color:#fbbf24;">+5 slots</td><td>27.5</td><td>Best offense in SEC, deep run candidate</td></tr>
+    <tr><td style="color:#fb7185; font-weight:600;">North Carolina</td><td>6</td><td>#10</td><td class="us-gap" style="color:#fb7185;">+6 slots</td><td>27.1</td><td>KenPom #10 as a 6-seed — monster value</td></tr>
+    <tr><td style="color:#a78bfa; font-weight:600;">Kentucky</td><td>7</td><td>#11</td><td class="us-gap" style="color:#a78bfa;">+4 slots</td><td>26.8</td><td>Highest AdjO in field (123.2)</td></tr>
+    <tr><td>Wisconsin</td><td>5</td><td>#16</td><td class="us-gap">+11 slots</td><td>25.0</td><td>4-seed efficiency at a 5 price</td></tr>
+    <tr><td>Texas Tech</td><td>5</td><td>#19</td><td class="us-gap">+14 slots</td><td>24.2</td><td>Big 12 grinder, solid D</td></tr>
+  </tbody>
+</table>
+
+<!-- ============ UPSET RATES ============ -->
+<h2>📉 Historical First-Round Upset Rates</h2>
+<div style="margin: 12px 0;">
+  <div class="upset-bar-row">
+    <span class="upset-label">9 over 8</span>
+    <div class="upset-bar"><div class="upset-fill" style="width: 48%; background: #a78bfa;"></div></div>
+    <span class="upset-pct">~48%</span>
+    <span class="tag tag-flip">COIN FLIP</span>
+  </div>
+  <div class="upset-bar-row">
+    <span class="upset-label">10 over 7</span>
+    <div class="upset-bar"><div class="upset-fill" style="width: 39%; background: #818cf8;"></div></div>
+    <span class="upset-pct">~39%</span>
+    <span class="tag tag-danger">WATCH</span>
+  </div>
+  <div class="upset-bar-row">
+    <span class="upset-label">11 over 6</span>
+    <div class="upset-bar"><div class="upset-fill" style="width: 37%; background: #818cf8;"></div></div>
+    <span class="upset-pct">~37%</span>
+    <span class="tag tag-danger">WATCH</span>
+  </div>
+  <div class="upset-bar-row">
+    <span class="upset-label">12 over 5</span>
+    <div class="upset-bar"><div class="upset-fill" style="width: 35.6%; background: #fb7185;"></div></div>
+    <span class="upset-pct">35.6%</span>
+    <span class="tag tag-upset">UPSET ZONE</span>
+  </div>
+  <div class="upset-bar-row">
+    <span class="upset-label">13 over 4</span>
+    <div class="upset-bar"><div class="upset-fill" style="width: 20.6%; background: #fbbf24;"></div></div>
+    <span class="upset-pct">20.6%</span>
+    <span class="tag tag-chalk">RARE</span>
+  </div>
+  <div class="upset-bar-row">
+    <span class="upset-label">14 over 3</span>
+    <div class="upset-bar"><div class="upset-fill" style="width: 14.4%; background: rgba(255,255,255,0.2);"></div></div>
+    <span class="upset-pct">14.4%</span>
+    <span class="tag tag-chalk">RARE</span>
+  </div>
+  <div class="upset-bar-row">
+    <span class="upset-label">15 over 2</span>
+    <div class="upset-bar"><div class="upset-fill" style="width: 7%; background: rgba(255,255,255,0.15);"></div></div>
+    <span class="upset-pct">7.0%</span>
+    <span class="tag tag-chalk">VERY RARE</span>
+  </div>
+  <div class="upset-bar-row">
+    <span class="upset-label">16 over 1</span>
+    <div class="upset-bar"><div class="upset-fill" style="width: 1.25%; background: rgba(255,255,255,0.1);"></div></div>
+    <span class="upset-pct">1.25%</span>
+    <span class="tag tag-chalk">NEAR IMPOSSIBLE</span>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ EAST ============ -->
+<div class="region">
+  <div class="region-header">
+    <span class="region-name" style="color: #60a5fa;">🏛️ EAST REGION</span>
+    <span class="region-winner east-winner">Winner: Duke</span>
+  </div>
+  
+  <div class="rounds">
+    <span class="round-pill active">Round 1</span>
+  </div>
+  
+  <div class="game">
+    <div class="game-seeds">1/16</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#60a5fa;">Duke</span> <span class="game-loser">vs Siena</span></div>
+    <div class="game-kenpom">#1 · 32.5</div>
+    <div class="game-conf">ACC</div>
+    <span class="tag tag-lock">LOCK</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">8/9</div>
+    <div class="game-matchup"><span class="game-winner">Ohio State</span> <span class="game-loser">vs TCU</span></div>
+    <div class="game-kenpom">— vs #37</div>
+    <div class="game-conf"></div>
+    <span class="tag tag-flip">COIN FLIP</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">5/12</div>
+    <div class="game-matchup"><span class="game-winner">St. John's</span> <span class="game-loser">vs Northern Iowa</span></div>
+    <div class="game-kenpom">#25 · 22.6</div>
+    <div class="game-conf">Big East</div>
+    <span class="tag tag-danger">⚠️ 35.6%</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">4/13</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#a78bfa;">Kansas</span> <span class="game-loser">vs CA Baptist</span></div>
+    <div class="game-kenpom">#8 · 27.9</div>
+    <div class="game-conf">Big 12</div>
+    <span class="tag tag-value">UNDERSEEDED</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">6/11</div>
+    <div class="game-matchup"><span class="game-winner">Louisville</span> <span class="game-loser">vs South Florida</span></div>
+    <div class="game-kenpom"></div>
+    <div class="game-conf"></div>
+    <span class="tag tag-chalk">CHALK</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">3/14</div>
+    <div class="game-matchup"><span class="game-winner">Michigan State</span> <span class="game-loser">vs N Dakota St</span></div>
+    <div class="game-kenpom">#15 · 25.3</div>
+    <div class="game-conf">Big Ten</div>
+    <span class="tag tag-lock">IZZO 🧊</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">7/10</div>
+    <div class="game-matchup"><span class="game-winner">UCLA</span> <span class="game-loser">vs UCF</span></div>
+    <div class="game-kenpom">#21 · 23.6</div>
+    <div class="game-conf">Big Ten</div>
+    <span class="tag tag-danger">⚠️ 39%</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">2/15</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#60a5fa;">UConn</span> <span class="game-loser">vs TBD</span></div>
+    <div class="game-kenpom">#4 · 29.9</div>
+    <div class="game-conf">Big East</div>
+    <span class="tag tag-lock">LOCK</span>
+  </div>
+  
+  <div class="rounds" style="margin-top: 12px;">
+    <span class="round-pill active">Deep Rounds</span>
+  </div>
+  <div class="sweet16-line"><span class="s16-round">Sweet 16</span> <span class="s16-pick" style="color:#60a5fa;">Duke</span> <span class="s16-over">over Ohio St</span> · <span class="s16-pick" style="color:#a78bfa;">Kansas</span> <span class="s16-over">over St. John's</span> · <span class="s16-pick">Mich St</span> <span class="s16-over">over Louisville</span> · <span class="s16-pick" style="color:#60a5fa;">UConn</span> <span class="s16-over">over UCLA</span></div>
+  <div class="sweet16-line"><span class="s16-round">Elite 8</span> <span class="s16-pick" style="color:#60a5fa;">Duke</span> <span class="s16-over">over Kansas</span> · <span class="s16-pick" style="color:#60a5fa;">UConn</span> <span class="s16-over">over Mich St</span></div>
+  <div class="sweet16-line"><span class="s16-round">Final</span> <span class="s16-pick" style="color:#60a5fa; font-size: 13px;">Duke</span> <span class="s16-over">over UConn</span> — <span style="font-size:10px; color:rgba(255,255,255,0.25);">KenPom #1 vs #4 · Duke's defense is the difference</span></div>
+</div>
+
+<!-- ============ WEST ============ -->
+<div class="region">
+  <div class="region-header">
+    <span class="region-name" style="color: #fb7185;">🌵 WEST REGION</span>
+    <span class="region-winner west-winner">Winner: Purdue</span>
+  </div>
+  
+  <div class="rounds">
+    <span class="round-pill active">Round 1</span>
+  </div>
+  
+  <div class="game">
+    <div class="game-seeds">1/16</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#fb7185;">Arizona</span> <span class="game-loser">vs Long Island</span></div>
+    <div class="game-kenpom">#7 · 28.2</div>
+    <div class="game-conf">Big 12</div>
+    <span class="tag tag-lock">LOCK</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">8/9</div>
+    <div class="game-matchup"><span class="game-winner">Villanova</span> <span class="game-loser">vs Utah State</span></div>
+    <div class="game-kenpom">#28 vs #44</div>
+    <div class="game-conf"></div>
+    <span class="tag tag-value">KENPOM EDGE</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">5/12</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#a78bfa;">Wisconsin</span> <span class="game-loser">vs High Point</span></div>
+    <div class="game-kenpom">#16 · 25.0</div>
+    <div class="game-conf">Big Ten</div>
+    <span class="tag tag-value">UNDERSEEDED</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">4/13</div>
+    <div class="game-matchup"><span class="game-winner">Arkansas</span> <span class="game-loser">vs Hawaii</span></div>
+    <div class="game-kenpom">#29 · 21.7</div>
+    <div class="game-conf">SEC</div>
+    <span class="tag tag-danger">⚠️ WEAK 4</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">6/11</div>
+    <div class="game-matchup"><span class="game-winner">BYU</span> <span class="game-loser">vs TEX/NCSU</span></div>
+    <div class="game-kenpom">#23 · 23.1</div>
+    <div class="game-conf">Big 12</div>
+    <span class="tag tag-chalk">CHALK</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">3/14</div>
+    <div class="game-matchup"><span class="game-winner">Gonzaga</span> <span class="game-loser">vs Kennesaw St</span></div>
+    <div class="game-kenpom">#14 · 25.7</div>
+    <div class="game-conf">WCC</div>
+    <span class="tag tag-lock">LOCK</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">7/10</div>
+    <div class="game-matchup"><span class="game-winner">Miami</span> <span class="game-loser">vs Missouri</span></div>
+    <div class="game-kenpom">#30 vs #59</div>
+    <div class="game-conf">ACC</div>
+    <span class="tag tag-value">KENPOM EDGE</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">2/15</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#fb7185;">Purdue</span> <span class="game-loser">vs Queens</span></div>
+    <div class="game-kenpom">#5 · 29.4</div>
+    <div class="game-conf">Big Ten</div>
+    <span class="tag tag-lock">LOCK</span>
+  </div>
+  
+  <div class="rounds" style="margin-top: 12px;">
+    <span class="round-pill active">Deep Rounds</span>
+  </div>
+  <div class="sweet16-line"><span class="s16-round">Sweet 16</span> <span class="s16-pick" style="color:#fb7185;">Arizona</span> <span class="s16-over">over Villanova</span> · <span class="s16-pick" style="color:#a78bfa;">Wisconsin</span> <span class="s16-over">over Arkansas</span> · <span class="s16-pick">Gonzaga</span> <span class="s16-over">over BYU</span> · <span class="s16-pick" style="color:#fb7185;">Purdue</span> <span class="s16-over">over Miami</span></div>
+  <div class="sweet16-line"><span class="s16-round">Elite 8</span> <span class="s16-pick" style="color:#fb7185;">Arizona</span> <span class="s16-over">over Wisconsin</span> · <span class="s16-pick" style="color:#fb7185;">Purdue</span> <span class="s16-over">over Gonzaga</span></div>
+  <div class="sweet16-line"><span class="s16-round">Final</span> <span class="s16-pick" style="color:#fb7185; font-size: 13px;">Purdue</span> <span class="s16-over">over Arizona</span> — <span style="font-size:10px; color:rgba(255,255,255,0.25);">KenPom #5 vs #7 · Purdue's balanced efficiency wins the grind</span></div>
+</div>
+
+<!-- ============ SOUTH ============ -->
+<div class="region">
+  <div class="region-header">
+    <span class="region-name" style="color: #fbbf24;">☀️ SOUTH REGION</span>
+    <span class="region-winner south-winner">Winner: Houston</span>
+  </div>
+  
+  <div class="rounds">
+    <span class="round-pill active">Round 1</span>
+  </div>
+  
+  <div class="game">
+    <div class="game-seeds">1/16</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#fbbf24;">Florida</span> <span class="game-loser">vs TBD</span></div>
+    <div class="game-kenpom">#22 · 23.4</div>
+    <div class="game-conf">SEC</div>
+    <span class="tag tag-danger">WEAK 1 SEED</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">8/9</div>
+    <div class="game-matchup"><span class="game-winner">Clemson</span> <span class="game-loser">vs TBD</span></div>
+    <div class="game-kenpom">#52</div>
+    <div class="game-conf">ACC</div>
+    <span class="tag tag-flip">COIN FLIP</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">5/12</div>
+    <div class="game-matchup"><span class="game-loser">Vanderbilt</span> <span style="color: rgba(255,255,255,0.3);">vs</span> <span class="game-winner" style="color:#fb7185;">McNeese 🔥</span></div>
+    <div class="game-kenpom">—</div>
+    <div class="game-conf"></div>
+    <span class="tag tag-upset">UPSET PICK</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">4/13</div>
+    <div class="game-matchup"><span class="game-winner">Nebraska</span> <span class="game-loser">vs Troy</span></div>
+    <div class="game-kenpom"></div>
+    <div class="game-conf"></div>
+    <span class="tag tag-chalk">CHALK</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">6/11</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#fb7185;">North Carolina</span> <span class="game-loser">vs VCU</span></div>
+    <div class="game-kenpom">#10 · 27.1</div>
+    <div class="game-conf">ACC</div>
+    <span class="tag tag-value">UNDERSEEDED 🔥</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">3/14</div>
+    <div class="game-matchup"><span class="game-winner">Illinois</span> <span class="game-loser">vs Penn</span></div>
+    <div class="game-kenpom">#20 · 23.9</div>
+    <div class="game-conf">Big Ten</div>
+    <span class="tag tag-chalk">CHALK</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">7/10</div>
+    <div class="game-matchup"><span class="game-winner">St. Mary's</span> <span class="game-loser">vs Texas A&M</span></div>
+    <div class="game-kenpom"></div>
+    <div class="game-conf"></div>
+    <span class="tag tag-danger">⚠️ 39%</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">2/15</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#fbbf24;">Houston</span> <span class="game-loser">vs TBD</span></div>
+    <div class="game-kenpom">#2 · 31.2</div>
+    <div class="game-conf">Big 12</div>
+    <span class="tag tag-lock">LOCK · REAL #1</span>
+  </div>
+  
+  <div class="rounds" style="margin-top: 12px;">
+    <span class="round-pill active">Deep Rounds</span>
+  </div>
+  <div class="sweet16-line"><span class="s16-round">Sweet 16</span> <span class="s16-pick" style="color:#fbbf24;">Florida</span> <span class="s16-over">over Clemson</span> · <span class="s16-pick">Nebraska</span> <span class="s16-over">over McNeese</span> · <span class="s16-pick" style="color:#fb7185;">UNC</span> <span class="s16-over">over Illinois</span> · <span class="s16-pick" style="color:#fbbf24;">Houston</span> <span class="s16-over">over St. Mary's</span></div>
+  <div class="sweet16-line"><span class="s16-round">Elite 8</span> <span class="s16-pick" style="color:#fb7185;">North Carolina</span> <span class="s16-over">over Florida</span> · <span class="s16-pick" style="color:#fbbf24;">Houston</span> <span class="s16-over">over Nebraska</span></div>
+  <div class="sweet16-line"><span class="s16-round">Final</span> <span class="s16-pick" style="color:#fbbf24; font-size: 13px;">Houston</span> <span class="s16-over">over North Carolina</span> — <span style="font-size:10px; color:rgba(255,255,255,0.25);">KenPom #2 vs #10 · Houston's defense (87.2 AdjD) smothers UNC's offense</span></div>
+</div>
+
+<!-- ============ MIDWEST ============ -->
+<div class="region">
+  <div class="region-header">
+    <span class="region-name" style="color: #34d399;">🌽 MIDWEST REGION</span>
+    <span class="region-winner midwest-winner">Winner: Tennessee 🔥</span>
+  </div>
+  
+  <div class="rounds">
+    <span class="round-pill active">Round 1</span>
+  </div>
+  
+  <div class="game">
+    <div class="game-seeds">1/16</div>
+    <div class="game-matchup"><span class="game-winner">Michigan</span> <span class="game-loser">vs UMBC</span></div>
+    <div class="game-kenpom">—</div>
+    <div class="game-conf">Big Ten</div>
+    <span class="tag tag-lock">REVENGE GAME</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">8/9</div>
+    <div class="game-matchup"><span class="game-winner">Georgia</span> <span class="game-loser">vs Saint Louis</span></div>
+    <div class="game-kenpom">#48</div>
+    <div class="game-conf">SEC</div>
+    <span class="tag tag-flip">COIN FLIP</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">5/12</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#a78bfa;">Texas Tech</span> <span class="game-loser">vs Akron</span></div>
+    <div class="game-kenpom">#19 · 24.2</div>
+    <div class="game-conf">Big 12</div>
+    <span class="tag tag-value">UNDERSEEDED</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">4/13</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#a78bfa;">Alabama</span> <span class="game-loser">vs Hofstra</span></div>
+    <div class="game-kenpom">#9 · 27.5</div>
+    <div class="game-conf">SEC</div>
+    <span class="tag tag-value">UNDERSEEDED 🔥</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">6/11</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#34d399;">Tennessee</span> <span class="game-loser">vs SMU</span></div>
+    <div class="game-kenpom">#6 · 28.7</div>
+    <div class="game-conf">SEC</div>
+    <span class="tag tag-value">MOST UNDERSEEDED 🔥🔥</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">3/14</div>
+    <div class="game-matchup"><span class="game-winner">Virginia</span> <span class="game-loser">vs Wright State</span></div>
+    <div class="game-kenpom"></div>
+    <div class="game-conf">ACC</div>
+    <span class="tag tag-chalk">CHALK</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">7/10</div>
+    <div class="game-matchup"><span class="game-winner" style="color:#a78bfa;">Kentucky</span> <span class="game-loser">vs Santa Clara</span></div>
+    <div class="game-kenpom">#11 · 26.8</div>
+    <div class="game-conf">SEC</div>
+    <span class="tag tag-value">UNDERSEEDED</span>
+  </div>
+  <div class="game">
+    <div class="game-seeds">2/15</div>
+    <div class="game-matchup"><span class="game-winner">Iowa State</span> <span class="game-loser">vs TBD</span></div>
+    <div class="game-kenpom">#12 · 26.4</div>
+    <div class="game-conf">Big 12</div>
+    <span class="tag tag-lock">LOCK</span>
+  </div>
+  
+  <div class="rounds" style="margin-top: 12px;">
+    <span class="round-pill active">Deep Rounds</span>
+  </div>
+  <div class="sweet16-line"><span class="s16-round">Sweet 16</span> <span class="s16-pick">Michigan</span> <span class="s16-over">over Georgia</span> · <span class="s16-pick" style="color:#a78bfa;">Alabama</span> <span class="s16-over">over Texas Tech</span> · <span class="s16-pick" style="color:#34d399;">Tennessee</span> <span class="s16-over">over Virginia</span> · <span class="s16-pick">Iowa State</span> <span class="s16-over">over Kentucky</span></div>
+  <div class="sweet16-line"><span class="s16-round">Elite 8</span> <span class="s16-pick" style="color:#a78bfa;">Alabama</span> <span class="s16-over">over Michigan</span> · <span class="s16-pick" style="color:#34d399;">Tennessee</span> <span class="s16-over">over Iowa State</span></div>
+  <div class="sweet16-line"><span class="s16-round">Final</span> <span class="s16-pick" style="color:#34d399; font-size: 13px;">Tennessee 🔥</span> <span class="s16-over">over Alabama</span> — <span style="font-size:10px; color:rgba(255,255,255,0.25);">KenPom #6 vs #9 · Tennessee's elite D (88.5) shuts down Bama's O (122.6) — defense wins championships</span></div>
+</div>
+
+<hr>
+
+<!-- ============ DATA SOURCE ============ -->
+<div style="text-align: center; padding: 32px 0; color: rgba(255,255,255,0.08); font-size: 10px; line-height: 1.8;">
+  <div style="color: rgba(139,92,246,0.25); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;">Data Sources</div>
+  41 memories loaded · KenPom AdjEM/AdjO/AdjD · Historical upset rates 1985-2025 (160 tournaments)<br>
+  Semantic recall via Engram AWM · marchmadness@heybeaux.dev · bracket-ai agent<br><br>
+  ◆ Engram · Agent Working Memory · heybeaux.dev
+</div>
+
+</body>
+</html>
