@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Engram AWM — System Overview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #09090b; color: #fafafa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 40px; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 32px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.5px; }
+  h2 { font-size: 20px; font-weight: 600; margin: 48px 0 16px; color: #a78bfa; letter-spacing: -0.3px; }
+  h3 { font-size: 14px; font-weight: 600; margin: 28px 0 12px; color: #818cf8; }
+  .subtitle { color: rgba(255,255,255,0.35); font-size: 14px; margin-bottom: 48px; }
+  .timestamp { color: rgba(255,255,255,0.2); font-size: 11px; }
+  
+  /* Architecture Diagram */
+  .diagram { 
+    background: rgba(255,255,255,0.015);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 24px;
+    padding: 40px;
+    margin: 20px 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .diagram::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 500px; height: 250px;
+    background: radial-gradient(ellipse, rgba(139,92,246,0.06), transparent 70%);
+    pointer-events: none;
+  }
+  
+  .flow { display: flex; flex-direction: column; gap: 20px; position: relative; z-index: 1; }
+  
+  .layer { display: flex; align-items: stretch; gap: 12px; }
+  .layer-label {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.15);
+    padding: 8px 6px;
+    display: flex;
+    align-items: center;
+    min-width: 28px;
+  }
+  .layer-content { flex: 1; display: flex; gap: 10px; flex-wrap: wrap; }
+  
+  .node {
+    border-radius: 14px;
+    padding: 14px 16px;
+    flex: 1;
+    min-width: 160px;
+  }
+  .node-title { font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+  .node-desc { font-size: 10px; opacity: 0.4; line-height: 1.5; }
+  .node-stat { font-size: 10px; font-weight: 600; margin-top: 6px; opacity: 0.7; }
+  
+  .node-input { background: rgba(6,182,212,0.06); border: 1px solid rgba(6,182,212,0.15); }
+  .node-input .node-title { color: #22d3ee; }
+  .node-input .node-stat { color: #22d3ee; }
+  
+  .node-process { background: rgba(139,92,246,0.06); border: 1px solid rgba(139,92,246,0.15); }
+  .node-process .node-title { color: #a78bfa; }
+  .node-process .node-stat { color: #a78bfa; }
+  
+  .node-memory { background: rgba(168,85,247,0.06); border: 1px solid rgba(168,85,247,0.15); }
+  .node-memory .node-title { color: #c084fc; }
+  .node-memory .node-stat { color: #c084fc; }
+  
+  .node-dream { background: rgba(244,63,94,0.06); border: 1px solid rgba(244,63,94,0.15); }
+  .node-dream .node-title { color: #fb7185; }
+  .node-dream .node-stat { color: #fb7185; }
+  
+  .node-output { background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.15); }
+  .node-output .node-title { color: #34d399; }
+  
+  .node-observe { background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.15); }
+  .node-observe .node-title { color: #fbbf24; }
+  .node-observe .node-stat { color: #fbbf24; }
+  
+  .arrow { text-align: center; color: rgba(255,255,255,0.1); font-size: 18px; padding: 2px 0; letter-spacing: 4px; }
+  
+  /* Stats */
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 16px 0; }
+  .stat-card {
+    background: rgba(255,255,255,0.015);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 14px;
+    padding: 18px;
+  }
+  .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -1px; }
+  .stat-label { font-size: 10px; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 1.5px; margin-top: 2px; }
+  .stat-detail { font-size: 10px; color: rgba(255,255,255,0.2); margin-top: 6px; line-height: 1.4; }
+  
+  .green { color: #34d399; }
+  .amber { color: #fbbf24; }
+  .red { color: #f87171; }
+  .violet { color: #a78bfa; }
+  .cyan { color: #22d3ee; }
+  .rose { color: #fb7185; }
+  
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 11px; }
+  th { text-align: left; padding: 8px 12px; color: rgba(255,255,255,0.3); font-weight: 500; text-transform: uppercase; letter-spacing: 1.5px; font-size: 9px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  td { padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.025); color: rgba(255,255,255,0.6); }
+  .tag { font-size: 9px; padding: 2px 8px; border-radius: 6px; font-weight: 600; display: inline-block; }
+  .tag-pass { background: rgba(16,185,129,0.1); color: #34d399; border: 1px solid rgba(16,185,129,0.15); }
+  .tag-fail { background: rgba(239,68,68,0.08); color: #f87171; border: 1px solid rgba(239,68,68,0.12); }
+  .tag-up { background: rgba(139,92,246,0.1); color: #a78bfa; border: 1px solid rgba(139,92,246,0.15); }
+  
+  /* Fog Index */
+  .fog-meter {
+    background: rgba(255,255,255,0.015);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 16px;
+    padding: 24px;
+    margin: 16px 0;
+  }
+  .fog-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+  .fog-score { font-size: 56px; font-weight: 700; letter-spacing: -2px; }
+  .fog-tier { font-size: 16px; font-weight: 500; }
+  .fog-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+  .fog-name { font-size: 11px; color: rgba(255,255,255,0.5); }
+  .fog-val { font-size: 11px; font-weight: 600; }
+  .bar { height: 3px; background: rgba(255,255,255,0.04); border-radius: 2px; margin: 2px 0 10px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 2px; }
+  
+  /* Pipeline */
+  .pipeline-flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 16px 0;
+  }
+  .pipe-stage {
+    flex: 1;
+    padding: 16px;
+    text-align: center;
+    position: relative;
+  }
+  .pipe-stage::after {
+    content: '→';
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255,255,255,0.1);
+    font-size: 16px;
+  }
+  .pipe-stage:last-child::after { display: none; }
+  .pipe-num { font-size: 24px; font-weight: 700; }
+  .pipe-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,0.3); margin-top: 4px; }
+  
+  .classification-grid { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+  .class-pill {
+    font-size: 11px;
+    padding: 6px 14px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .class-pill strong { font-weight: 600; }
+  
+  /* Eval section */
+  .eval-config {
+    background: rgba(255,255,255,0.015);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 14px;
+    padding: 20px;
+    margin: 12px 0;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+    line-height: 1.7;
+  }
+  .eval-config .cmd { color: #22d3ee; }
+  .eval-config .comment { color: rgba(255,255,255,0.2); }
+  
+  hr { border: none; border-top: 1px solid rgba(255,255,255,0.03); margin: 48px 0; }
+  
+  /* Distribution bars */
+  .dist-row { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
+  .dist-label { font-size: 11px; color: rgba(255,255,255,0.5); min-width: 80px; }
+  .dist-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.03); border-radius: 3px; overflow: hidden; }
+  .dist-fill { height: 100%; border-radius: 3px; }
+  .dist-val { font-size: 10px; color: rgba(255,255,255,0.3); min-width: 50px; text-align: right; }
+</style>
+</head>
+<body>
+
+<h1>Engram — Agent Working Memory</h1>
+<p class="subtitle">Architecture · Benchmarks · Observability</p>
+<p class="timestamp">Live production data · March 16, 2026 18:34 UTC · 13,096 total memories</p>
+
+<!-- ============ ARCHITECTURE ============ -->
+<h2>System Architecture</h2>
+
+<div class="diagram">
+  <div class="flow">
+    
+    <div class="layer">
+      <div class="layer-label">Ingest</div>
+      <div class="layer-content">
+        <div class="node node-input">
+          <div class="node-title">Agent Conversation</div>
+          <div class="node-desc">Explicit statements, observations, reflections, corrections</div>
+          <div class="node-stat">77 memories today</div>
+        </div>
+        <div class="node node-input">
+          <div class="node-title">System Events</div>
+          <div class="node-desc">Git history, CI results, pattern detection, task completions</div>
+        </div>
+        <div class="node node-input">
+          <div class="node-title">Multi-Agent</div>
+          <div class="node-desc">Delegation contracts, shared memory pools, team collaboration</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="arrow">↓↓↓</div>
+    
+    <div class="layer">
+      <div class="layer-label">Process</div>
+      <div class="layer-content">
+        <div class="node node-process">
+          <div class="node-title">5W1H Extraction</div>
+          <div class="node-desc">Who, What, When, Where, Why, How — structured metadata</div>
+          <div class="node-stat">WHO 87.9% · WHAT 97.8%</div>
+        </div>
+        <div class="node node-process">
+          <div class="node-title">Entity Graph</div>
+          <div class="node-desc">NER → relationship mapping → knowledge graph</div>
+          <div class="node-stat">95 entities linked</div>
+        </div>
+        <div class="node node-process">
+          <div class="node-title">Importance Scoring</div>
+          <div class="node-desc">Recency × frequency × emotional weight × decay</div>
+          <div class="node-stat">avg: 0.348</div>
+        </div>
+        <div class="node node-process">
+          <div class="node-title">Ensemble Embedding</div>
+          <div class="node-desc">Multi-model vector embeddings + drift detection</div>
+          <div class="node-stat">100% coverage · 496ms latency</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="arrow">↓↓↓</div>
+    
+    <div class="layer">
+      <div class="layer-label">Store</div>
+      <div class="layer-content">
+        <div class="node node-memory">
+          <div class="node-title">Identity</div>
+          <div class="node-desc">Names, preferences, relationships, traits</div>
+          <div class="node-stat">3,060 (36.2%)</div>
+        </div>
+        <div class="node node-memory">
+          <div class="node-title">Task</div>
+          <div class="node-desc">Active work, assignments, completions</div>
+          <div class="node-stat">1,798 (21.3%)</div>
+        </div>
+        <div class="node node-memory">
+          <div class="node-title">Session</div>
+          <div class="node-desc">Conversation context, recent interactions</div>
+          <div class="node-stat">1,542 (18.2%)</div>
+        </div>
+        <div class="node node-memory">
+          <div class="node-title">Insight</div>
+          <div class="node-desc">Patterns, consolidated learnings</div>
+          <div class="node-stat">1,406 (16.6%)</div>
+        </div>
+        <div class="node node-memory">
+          <div class="node-title">Project</div>
+          <div class="node-desc">Repos, architecture, decisions</div>
+          <div class="node-stat">648 (7.7%)</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="arrow">↓↓↓</div>
+    
+    <div class="layer">
+      <div class="layer-label">Dream</div>
+      <div class="layer-content">
+        <div class="node node-dream">
+          <div class="node-title">Automated Dedup Pipeline</div>
+          <div class="node-desc">3-phase: Detection → LLM Classification → Auto-Resolution. Runs daily at 04:00.</div>
+          <div class="node-stat">108 processed · 6.5% merge rate · 29 merges this week</div>
+        </div>
+        <div class="node node-dream">
+          <div class="node-title">Dream Cycle</div>
+          <div class="node-desc">Nightly at 03:00 — clustering, consolidation, tiering, identity synthesis, pattern recognition</div>
+          <div class="node-stat">364 potential clusters · 41 consolidated</div>
+        </div>
+        <div class="node node-dream">
+          <div class="node-title">Awareness Cycle</div>
+          <div class="node-desc">Continuous observation → insight generation → pattern detection</div>
+          <div class="node-stat">5 insights · 4 patterns · 3 observations</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="arrow">↓↓↓</div>
+    
+    <div class="layer">
+      <div class="layer-label">Recall</div>
+      <div class="layer-content">
+        <div class="node node-output">
+          <div class="node-title">Hybrid Search</div>
+          <div class="node-desc">Vector similarity + keyword matching + usage-weighted ranking (ENG-26/27)</div>
+        </div>
+        <div class="node node-output">
+          <div class="node-title">Scoped Context</div>
+          <div class="node-desc">Per-agent context windows, bootstrap injection, conversation enrichment</div>
+        </div>
+        <div class="node node-output">
+          <div class="node-title">Anticipatory Output</div>
+          <div class="node-desc">Pattern-based proactive suggestions — the "learns from usage" loop</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="arrow">↓↓↓</div>
+    
+    <div class="layer">
+      <div class="layer-label">Observe</div>
+      <div class="layer-content">
+        <div class="node node-observe">
+          <div class="node-title">5 Health Metrics (HEY-461)</div>
+          <div class="node-desc">Embedding coverage, duplicate ratio, stale %, layer distribution, dream cycle SLA</div>
+          <div class="node-stat">99.99% embedded · 27.4% dup ratio</div>
+        </div>
+        <div class="node node-observe">
+          <div class="node-title">Monitoring</div>
+          <div class="node-desc">Embedding failures, 5xx errors, dream cycle status, memory count deltas</div>
+          <div class="node-stat">0 alerts · 0 failures</div>
+        </div>
+        <div class="node node-observe">
+          <div class="node-title">Awareness Cycle</div>
+          <div class="node-desc">Continuous observation → insight generation → pattern detection → category tagging</div>
+          <div class="node-stat">5 insights · 4 patterns · last run 1min ago</div>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ LIVE STATS ============ -->
+<h2>Live Production Stats</h2>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-value">8,454</div>
+    <div class="stat-label">Active Memories</div>
+    <div class="stat-detail">191 added this week · 77 today</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value green">100%</div>
+    <div class="stat-label">Embedding Coverage</div>
+    <div class="stat-detail">Every memory has a vector embedding</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value cyan">12ms</div>
+    <div class="stat-label">DB Latency</div>
+    <div class="stat-detail">PostgreSQL P50 query time</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">496ms</div>
+    <div class="stat-label">Embed Latency</div>
+    <div class="stat-detail">Cloud ensemble embedding time</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value violet">6.5%</div>
+    <div class="stat-label">Merge Rate</div>
+    <div class="stat-detail">Automated dedup resolution rate</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">364</div>
+    <div class="stat-label">Clusters</div>
+    <div class="stat-detail">Topic clusters identified by DBSCAN</div>
+  </div>
+</div>
+
+<h3>Memory Type Distribution</h3>
+<div style="margin: 12px 0;">
+  <div class="dist-row">
+    <span class="dist-label">Fact</span>
+    <div class="dist-bar"><div class="dist-fill" style="width: 33.1%; background: #a78bfa;"></div></div>
+    <span class="dist-val">2,795 (33.1%)</span>
+  </div>
+  <div class="dist-row">
+    <span class="dist-label">Task</span>
+    <div class="dist-bar"><div class="dist-fill" style="width: 18.9%; background: #22d3ee;"></div></div>
+    <span class="dist-val">1,595 (18.9%)</span>
+  </div>
+  <div class="dist-row">
+    <span class="dist-label">Lesson</span>
+    <div class="dist-bar"><div class="dist-fill" style="width: 14.9%; background: #34d399;"></div></div>
+    <span class="dist-val">1,261 (14.9%)</span>
+  </div>
+  <div class="dist-row">
+    <span class="dist-label">Preference</span>
+    <div class="dist-bar"><div class="dist-fill" style="width: 8.7%; background: #fbbf24;"></div></div>
+    <span class="dist-val">737 (8.7%)</span>
+  </div>
+  <div class="dist-row">
+    <span class="dist-label">Event</span>
+    <div class="dist-bar"><div class="dist-fill" style="width: 7.6%; background: #fb7185;"></div></div>
+    <span class="dist-val">641 (7.6%)</span>
+  </div>
+  <div class="dist-row">
+    <span class="dist-label">Constraint</span>
+    <div class="dist-bar"><div class="dist-fill" style="width: 0.5%; background: #f87171;"></div></div>
+    <span class="dist-val">46 (0.5%)</span>
+  </div>
+</div>
+
+<h3>Layer Distribution</h3>
+<div style="margin: 12px 0;">
+  <div class="dist-row">
+    <span class="dist-label">Identity</span>
+    <div class="dist-bar"><div class="dist-fill" style="width: 36.2%; background: #c084fc;"></div></div>
+    <span class="dist-val">3,060 (36.2%)</span>
+  </div>
+  <div class="dist-row">
+    <span class="dist-label">Task</span>
+    <div class="dist-bar"><div class="dist-fill" style="width: 21.3%; background: #22d3ee;"></div></div>
+    <span class="dist-val">1,798 (21.3%)</span>
+  </div>
+  <div class="dist-row">
+    <span class="dist-label">Session</span>
+    <div class="dist-bar"><div class="dist-fill" style="width: 18.2%; background: #818cf8;"></div></div>
+    <span class="dist-val">1,542 (18.2%)</span>
+  </div>
+  <div class="dist-row">
+    <span class="dist-label">Insight</span>
+    <div class="dist-bar"><div class="dist-fill" style="width: 16.6%; background: #34d399;"></div></div>
+    <span class="dist-val">1,406 (16.6%)</span>
+  </div>
+  <div class="dist-row">
+    <span class="dist-label">Project</span>
+    <div class="dist-bar"><div class="dist-fill" style="width: 7.7%; background: #fbbf24;"></div></div>
+    <span class="dist-val">648 (7.7%)</span>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ DEDUP PIPELINE ============ -->
+<h2>Automated Dedup Pipeline</h2>
+<p style="color: rgba(255,255,255,0.3); font-size: 12px; margin-bottom: 16px;">3-phase pipeline · Runs daily at 04:00 UTC (1h after Dream Cycle) · ENG-15/16/17</p>
+
+<div class="pipeline-flow">
+  <div class="pipe-stage" style="background: rgba(251,191,36,0.05); border-radius: 14px;">
+    <div class="pipe-num amber">108</div>
+    <div class="pipe-label">Detected</div>
+  </div>
+  <div class="pipe-stage" style="background: rgba(139,92,246,0.05); border-radius: 14px;">
+    <div class="pipe-num violet">101</div>
+    <div class="pipe-label">Classified</div>
+  </div>
+  <div class="pipe-stage" style="background: rgba(16,185,129,0.05); border-radius: 14px;">
+    <div class="pipe-num green">7</div>
+    <div class="pipe-label">Resolved</div>
+  </div>
+  <div class="pipe-stage" style="background: rgba(6,182,212,0.05); border-radius: 14px;">
+    <div class="pipe-num cyan">6.5%</div>
+    <div class="pipe-label">Merge Rate</div>
+  </div>
+</div>
+
+<h3>Classification Breakdown</h3>
+<div class="classification-grid">
+  <div class="class-pill"><strong class="violet">83</strong> Overlapping</div>
+  <div class="class-pill"><strong class="rose">17</strong> Duplicate</div>
+  <div class="class-pill"><strong class="green">7</strong> Supporting</div>
+  <div class="class-pill"><strong class="amber">1</strong> Conflicting</div>
+</div>
+
+<p style="color: rgba(255,255,255,0.25); font-size: 11px; margin-top: 12px; line-height: 1.6;">
+  <strong style="color: rgba(255,255,255,0.4);">How it works:</strong>
+  Phase 1 scans recent memories for semantic similarity candidates (cosine threshold).
+  Phase 2 sends candidates to an LLM for classification: DUPLICATE (merge), OVERLAPPING (partial), SUPPORTING (keep both), or CONFLICTING (flag).
+  Phase 3 auto-resolves above-confidence candidates; rest go to review queue.
+  Legacy backlog: 1,841 pre-pipeline candidates draining through the new system.
+</p>
+
+<hr>
+
+<!-- ============ BENCHMARKS ============ -->
+<h2>Evaluation Benchmarks</h2>
+
+<h3>How We Test</h3>
+<div class="eval-config">
+  <span class="comment"># Capture baseline before changes</span><br>
+  <span class="cmd">npx ts-node</span> tests/evaluation/baseline.ts "pre-improvement"<br><br>
+  <span class="comment"># Run 12 scenario tests across 5 categories</span><br>
+  <span class="cmd">npx ts-node</span> tests/evaluation/scenarios.ts<br><br>
+  <span class="comment"># Make improvements, then capture + compare</span><br>
+  <span class="cmd">npx ts-node</span> tests/evaluation/baseline.ts "post-improvement"<br>
+  <span class="cmd">npx ts-node</span> tests/evaluation/compare.ts<br><br>
+  <span class="comment"># 20 semantic recall queries test real memory retrieval</span><br>
+  <span class="comment"># "Who is Beaux's wife?" → expects "Deanna"</span><br>
+  <span class="comment"># "Should we deploy on Friday?" → expects "never deploys on Fridays"</span>
+</div>
+
+<h3>Before / After: 5W1H Extraction Quality</h3>
+<p style="color: rgba(255,255,255,0.25); font-size: 11px; margin-bottom: 12px;">Comparison run: Feb 3, 2026 · 232 memories · 11 improved, 0 regressions</p>
+
+<table>
+  <thead>
+    <tr><th>Metric</th><th>Before</th><th>After</th><th>Δ</th><th></th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Extractions With Data</td><td>74</td><td>226</td><td class="green">+205%</td><td><span class="tag tag-up">↑</span></td></tr>
+    <tr><td>Total Entities</td><td>36</td><td>95</td><td class="green">+164%</td><td><span class="tag tag-up">↑</span></td></tr>
+    <tr><td>5W1H Completion</td><td>11.8%</td><td>35.3%</td><td class="green">+198%</td><td><span class="tag tag-up">↑</span></td></tr>
+    <tr><td>WHO</td><td>26.8%</td><td>87.9%</td><td class="green">+227%</td><td><span class="tag tag-up">↑</span></td></tr>
+    <tr><td>WHAT</td><td>32.0%</td><td>97.8%</td><td class="green">+206%</td><td><span class="tag tag-up">↑</span></td></tr>
+    <tr><td>WHEN</td><td>2.6%</td><td>4.8%</td><td class="green">+83%</td><td><span class="tag tag-up">↑</span></td></tr>
+    <tr><td>WHERE</td><td>2.6%</td><td>5.6%</td><td class="green">+117%</td><td><span class="tag tag-up">↑</span></td></tr>
+    <tr><td>WHY</td><td>2.2%</td><td>4.8%</td><td class="green">+120%</td><td><span class="tag tag-up">↑</span></td></tr>
+    <tr><td>HOW</td><td>4.8%</td><td>10.8%</td><td class="green">+127%</td><td><span class="tag tag-up">↑</span></td></tr>
+    <tr><td>Entities/Memory</td><td>0.16</td><td>0.41</td><td class="green">+163%</td><td><span class="tag tag-up">↑</span></td></tr>
+  </tbody>
+</table>
+
+<h3>Scenario Tests (12 scenarios · 5 categories)</h3>
+<table>
+  <thead>
+    <tr><th>Test</th><th>Score</th><th></th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Entity: Known entity recall</td><td>1.0</td><td><span class="tag tag-pass">Pass</span></td></tr>
+    <tr><td>Entity: Type distribution</td><td>1.0</td><td><span class="tag tag-pass">Pass</span></td></tr>
+    <tr><td>Temporal: Extraction timestamps</td><td>0.03</td><td><span class="tag tag-fail">Fail</span></td></tr>
+    <tr><td>Temporal: Creation dates valid</td><td>1.0</td><td><span class="tag tag-pass">Pass</span></td></tr>
+    <tr><td>Semantic: Embedding coverage</td><td>0.97</td><td><span class="tag tag-pass">Pass</span></td></tr>
+    <tr><td>Semantic: Model recorded</td><td>0.0</td><td><span class="tag tag-fail">Fail</span></td></tr>
+    <tr><td>Extraction: WHAT populated</td><td>0.35</td><td><span class="tag tag-fail">Fail</span></td></tr>
+    <tr><td>Extraction: Topics extracted</td><td>0.53</td><td><span class="tag tag-pass">Pass</span></td></tr>
+    <tr><td>Dedup: Superseded tracking</td><td>0.50</td><td><span class="tag tag-fail">Fail</span></td></tr>
+    <tr><td>Dedup: UPDATES links</td><td>0.50</td><td><span class="tag tag-fail">Fail</span></td></tr>
+    <tr><td>Links: Chain links exist</td><td>0.35</td><td><span class="tag tag-pass">Pass</span></td></tr>
+    <tr><td>Links: Type diversity</td><td>0.25</td><td><span class="tag tag-fail">Fail</span></td></tr>
+  </tbody>
+</table>
+<p style="color: rgba(255,255,255,0.2); font-size: 11px; margin-top: 8px;">
+  Overall: 54% · 6 pass / 6 fail · Note: dedup scenario tests predate the automated pipeline (ENG-15/16/17) and should be re-run.
+</p>
+
+<hr>
+
+<!-- ============ OBSERVABILITY ============ -->
+<h2>Observability — Health Metrics & Awareness</h2>
+<p style="color: rgba(255,255,255,0.25); font-size: 12px; margin-bottom: 16px;">
+  5 discrete health metrics (HEY-461) replace the legacy Fog Index. Computed per dream cycle + on-demand.
+  Awareness Cycle generates insights from observed patterns continuously.
+</p>
+
+<h3>Health Metrics (HEY-461)</h3>
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-value green">99.99%</div>
+    <div class="stat-label">Embedding Coverage</div>
+    <div class="stat-detail">Memories with vector embeddings. Threshold: ≥95% green, ≥80% yellow, &lt;80% red</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value red">27.4%</div>
+    <div class="stat-label">Duplicate Ratio</div>
+    <div class="stat-detail">Exact-text duplicates. Pipeline now draining these. Threshold: ≤5% green, ≤15% yellow</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value green">0%</div>
+    <div class="stat-label">Stale Memories</div>
+    <div class="stat-detail">Untouched in last 30 days. Threshold: ≤20% green, ≤40% yellow</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="font-size: 20px;">IDENTITY 3,042 · PROJECT 5,168 · SESSION 1,672 · TASK 1,818 · INSIGHT 1,410</div>
+    <div class="stat-label">Layer Distribution</div>
+    <div class="stat-detail">Balanced distribution across all 5 layers</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value green">15h ago</div>
+    <div class="stat-label">Dream Cycle SLA</div>
+    <div class="stat-detail">Last completed: March 16 03:15 UTC. Threshold: ≤25h green, ≤48h yellow</div>
+  </div>
+</div>
+
+<h3>Awareness Cycle — Automated Insights</h3>
+<p style="color: rgba(255,255,255,0.25); font-size: 11px; margin-bottom: 12px;">
+  Continuously observes memory patterns and generates categorized insights. Last run: 11 min ago · 5 insights · 4 patterns · 3 observations
+</p>
+
+<div style="display: flex; flex-direction: column; gap: 8px; margin: 12px 0;">
+  <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 16px;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+      <span class="tag" style="background: rgba(244,63,94,0.1); color: #fb7185; border: 1px solid rgba(244,63,94,0.15);">systemic_issue</span>
+      <span style="font-size: 10px; color: rgba(255,255,255,0.2);">confidence: 0.65</span>
+    </div>
+    <p style="font-size: 11px; color: rgba(255,255,255,0.5); line-height: 1.5;">"The pattern of 502 errors combined with the noted need for updating environment variables suggests the errors may be symptomatic of a larger systemic issue in the configuration management process."</p>
+  </div>
+  <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 16px;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+      <span class="tag" style="background: rgba(251,191,36,0.1); color: #fbbf24; border: 1px solid rgba(251,191,36,0.15);">architecture_review</span>
+      <span style="font-size: 10px; color: rgba(255,255,255,0.2);">confidence: 0.65</span>
+    </div>
+    <p style="font-size: 11px; color: rgba(255,255,255,0.5); line-height: 1.5;">"The repeated references to the microservice's ECS service being hosted separately indicate a need for a review of inter-service communication protocols to prevent further 502 errors caused by misconfigurations."</p>
+  </div>
+  <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 16px;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+      <span class="tag" style="background: rgba(139,92,246,0.1); color: #a78bfa; border: 1px solid rgba(139,92,246,0.15);">architectural_misalignment</span>
+      <span style="font-size: 10px; color: rgba(255,255,255,0.2);">confidence: 0.60</span>
+    </div>
+    <p style="font-size: 11px; color: rgba(255,255,255,0.5); line-height: 1.5;">"The microservice being hosted on its own ECS service suggests a need for a more cohesive deployment strategy to streamline interactions and reduce latency."</p>
+  </div>
+</div>
+<p style="color: rgba(255,255,255,0.2); font-size: 10px; margin-top: 8px;">
+  These insights are generated automatically from accumulated memories — no human prompting required.
+  The Awareness Cycle observes cross-memory patterns and surfaces actionable findings with confidence scores.
+</p>
+
+<h3>Real-Time Monitoring</h3>
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-value green">0</div>
+    <div class="stat-label">Embedding Failures (1h)</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value green">0</div>
+    <div class="stat-label">5xx Errors (1h)</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">13,096</div>
+    <div class="stat-label">Total Memories</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value green">COMPLETED</div>
+    <div class="stat-label">Last Dream Cycle</div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ============ RECALL SUITE ============ -->
+<h2>Semantic Recall Test Suite</h2>
+<p style="color: rgba(255,255,255,0.25); font-size: 12px; margin-bottom: 16px;">20 natural language queries tested against stored memories · evaluates recall accuracy across identity, procedural, episodic, and project memory</p>
+
+<table>
+  <thead>
+    <tr><th>Query</th><th>Expected</th><th>Category</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>"Who is Beaux's wife?"</td><td>Deanna</td><td>Identity</td></tr>
+    <tr><td>"Should we deploy on Friday?"</td><td>never deploys on Fridays</td><td>Procedural</td></tr>
+    <tr><td>"Tell me about Beaux's kids"</td><td>Stella, Odin</td><td>Identity</td></tr>
+    <tr><td>"What pet does Beaux have?"</td><td>husky, Kali</td><td>Identity</td></tr>
+    <tr><td>"Where did Beaux study martial arts?"</td><td>Yantai, Muping</td><td>Episodic</td></tr>
+    <tr><td>"Who was Beaux's Wing Chun master?"</td><td>Sifu Liu Ping</td><td>Identity</td></tr>
+    <tr><td>"What happened with the database wipe?"</td><td>prisma migrate dev, 543</td><td>Incident</td></tr>
+    <tr><td>"Who are the GC co-founders?"</td><td>Trevan, Matt</td><td>Project</td></tr>
+    <tr><td>"SOC 2 target date"</td><td>February 2026</td><td>Project</td></tr>
+    <tr><td>"Does Beaux prefer dark or white chocolate?"</td><td>white chocolate</td><td>Preference</td></tr>
+    <tr><td>"Who was Beaux's roommate in China?"</td><td>Sascha, Ryan</td><td>Episodic</td></tr>
+    <tr><td>"What did Sifu say about injuries?"</td><td>focus on your kicks</td><td>Episodic</td></tr>
+    <tr><td>"Beaux's philosophy on learning"</td><td>practice the basics</td><td>Insight</td></tr>
+    <tr><td>"Who is Prince Ocean?"</td><td>7-year-old</td><td>Identity</td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<div style="text-align: center; padding: 40px 0; color: rgba(255,255,255,0.1); font-size: 11px;">
+  ◆ Engram · Open Source Agent Working Memory · heybeaux.dev
+</div>
+
+</body>
+</html>
