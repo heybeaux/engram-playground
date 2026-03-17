@@ -225,10 +225,9 @@ def simulate_tournament(n_sims: int = 50000) -> dict:
                 for r in range(1, round_reached + 1):
                     team_rounds[team_name][r] += 1
         
-        # Final Four
+        # Final Four (round 5 already counted by simulate_region)
         for rw in region_winners.values():
             final_four_counts[rw.name] += 1
-            team_rounds[rw.name][5] += 1
         
         # Semifinals: East vs West, South vs Midwest (standard bracket)
         semi1_a, semi1_b = region_winners['East'], region_winners['West']
